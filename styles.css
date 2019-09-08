@@ -46,7 +46,7 @@ h1, h2, h3, h4, h5 {
     background-size: cover;
     color: #fafafa;
     font-family: "Roboto Mono";
-    background-image: url("file:///home/lamar/Documents/workspace/web/mini/portfolio/assets/neural.svg");
+    background-image: url("assets/neural.svg");
     background-size: 33.33%;
     background-repeat: no-repeat;
     background-position-x: right;
@@ -69,7 +69,7 @@ h1, h2, h3, h4, h5 {
 }
 
 #illustration img {
-    border-radius: 10px;
+    border-radius: 2.5px;
     flex: 1;
 }
 
