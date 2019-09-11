@@ -51,7 +51,7 @@ h1, h2, h3, h4, h5 {
     color: #fafafa;
     font-family: "Roboto Mono";
     background-image: url("assets/neural.svg");
-    background-size: 33.33%;
+    background-size: 33.33% auto;
     background-repeat: no-repeat;
     background-position-x: right;
     background-position-y: top;
@@ -70,6 +70,7 @@ h1, h2, h3, h4, h5 {
 #illustration .text-row {
     flex: 1;
     padding-left: 17.5px;
+    vertical-align: middle;
 }
 
 #illustration img {
@@ -284,7 +285,7 @@ footer {
 
 #experience ol {
     list-style: none;
-    border-left: 1px solid #333;
+    
 }
 
 .more-projects {
