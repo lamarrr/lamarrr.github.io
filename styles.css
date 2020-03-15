@@ -147,6 +147,10 @@ section {
     background-color: #3572A5;
 }
 
+.rust::before {
+    background-color: brown;
+}
+
 .dart::before {
     background-color: rgb(29, 184, 210);
 }
@@ -312,16 +316,20 @@ padding: 15px;
 
 #skills ul {
     list-style: none;
+    margin: 0px;
+    padding: 0px;
 }
 
-/*
+
 #skills ul li{
     display: inline-block;
     background-color: #efefefef;
-    padding: 12.5px;
-    border-radius: 12.5px;
+    padding: 5.5px;
+    border-radius: 5.5px;
+    margin-left: 2px;
+    margin-right: 2px;
+    margin-bottom: 4px;
 }
-*/
 
 a h3 {
     color: #333;
