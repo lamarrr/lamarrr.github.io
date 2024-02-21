@@ -14,7 +14,7 @@ This is typically required when implementing your container types, working with 
 These are typically termed as 'unsafe' operations as they do require an understanding of the Object lifetime invariants or lifecycle.
 
 
-**NOTE**: We will not be discussing about exceptions nor the corner cases, unnecessary complexities, code path explosions, and limitations they introduce.
+**NOTE**: We will not discuss exceptions nor the corner cases, unnecessary complexities, code path explosions, and limitations they introduce.
 
 
 The lifecycle of a C++ Object is illustrated as:
@@ -33,10 +33,10 @@ The lifecycle of a C++ Object is illustrated as:
  deallocate placement memory                        
 ```
 
-A violation of this lifecycle **WILL** lead to undefined behaviour, typically: memory leak, double-free, uninitialized memory read/write, unaligned read/writes, nullptr dereference, out of bound read/writes, etc.
+A violation of this lifecycle **WILL** lead to undefined behavior, typically: memory leak, double-free, uninitialized memory read/write, unaligned read/writes, nullptr dereference, out-of-bound read/writes, etc.
 
 A general rule of thumb for testing lifecycle violations in containers is to ensure the number of constructions is equal to the number of destructions, which is the core idea behind RAII.
-The types we will be using for demonstrating some of these concepts is defined as follows:
+The types we will be using for demonstrating some of these concepts are defined as follows:
 
 ```cpp
 
@@ -94,7 +94,7 @@ struct Dog : Animal {
 
 ##### Allocate Memory
 An object's memory **can** be sourced from the stack (i.e. `alloca`, `malloca`) or heap (i.e. `sbrk`, `malloc`, `kalloc`) and have some base requirements for objects to be placed on them:
-- On successful allocation, memory returned by allocators **MUST** be valid and not be already in use.
+- On successful allocation, the memory returned by allocators **MUST** be valid and not be already in use.
 This prevents catastrophic failures like double-free (double-object destructor calls).
 
 **SEE**: GNUC's [`__attribute__((malloc(...)))`](https://gcc.gnu.org/onlinedocs/gcc/Common-Function-Attributes.html) and MSVC's [`__restrict`](https://learn.microsoft.com/en-us/cpp/cpp/restrict?view=msvc-170) return attributes which enables global aliasing optimizations for the compiler's reachability analysis.
@@ -109,12 +109,12 @@ This prevents catastrophic failures like double-free (double-object destructor c
 #### Construct Object
 This is where the lifecycle of an object begins. For non-trivially constructible types this implies a placement new of the object on the placement memory and for trivially constructible types, any memory write operation on the object's placement memory.
 
-The object's placement memory address **MUST** be sized to *at-least* the object's size and the object placement address within the memory **MUST** be aligned to a multiple of the object's alignment. If an object is constructed at a memory location not properly sized for it, it can lead to Undefined Behaviour (out-of-bound reads). Non-suitably aligned placement memory can lead to unaligned read & writes (undefined behavior, which on some CPU architectures can crash your application with a `SIGILL` or just lead to degraded performance).
+The object's placement memory address **MUST** be sized to *at least* the object's size and the object placement address within the memory **MUST** be aligned to a multiple of the object's alignment. If an object is constructed at a memory location not properly sized for it, it can lead to Undefined Behaviour (out-of-bound reads). Non-suitably aligned placement memory can lead to unaligned read & writes (undefined behavior, which on some CPU architectures can crash your application with a `SIGILL` or just lead to degraded performance).
 Reading an uninitialized/non-constructed object is Undefined Behaviour and catastrophic.
 
 Placement-new serves some important purposes:
 - initializing virtual function dispatch table for virtual (base and inherited) classes. (`reintepret_cast` + trivial construction i.e. `memset` or `memcpy` is not enough). i.e.
-- initializing the class/struct, it's base classes, and its members
+- initializing the class/struct, its base classes, and its members
 
 
 Let's look at these in practice:
@@ -124,7 +124,7 @@ Let's look at these in practice:
 int * x = (int*) malloc(4);
 (*x)++; // undefined behaviour
 ```
-The code above invokes undefined behaviour due to an uninitialized read of an `int` at memory x.
+The code above invokes undefined behavior due to an uninitialized read of an `int` at memory x.
 With optimizations enabled, the compiler can aggressively decide to totally ignore the increment operation.
 
 To fix:
@@ -151,8 +151,8 @@ printf("data: %" PRIu32 "\n", obj->data);
 counter.log(); // num_constructs = 0, num_destructs = 0
 ```
 
-From the log above, you can see the Object is never constructed at address `obj`, so, no object of type `Obj` exists at `obj` yet and it is undefined behaviour to use/destroy the object in that state.
-This could lead to a number of contract violations/undefined behaviour like double-free, out-of-bounds reads/writes.
+From the log above, you can see the Object is never constructed at address `obj`, so, no object of type `Obj` exists at `obj` yet and it is undefined behavior to use/destroy the object in that state.
+This could lead to a number of contract violations/undefined behavior like double-free, out-of-bounds reads/writes.
 
 To fix:
 
@@ -167,7 +167,7 @@ counter.log();  // num_constructs = 1, num_destructs = 0
 The placement new constructs the object of type `Obj` at address `obj`, and now contains valid member `data`.
 
 Placement-new also serves to initialize the virtual function table pointers for the object to be usable in virtual dispatch.
-The compiler's reachability analysis **MIGHT** decide an object doesn't exist at a memory address if it is not constructed with placement new and thus invoke undefined behaviour. To illustrate:
+The compiler's reachability analysis **MIGHT** decide an object doesn't exist at a memory address if it is not constructed with placement new and thus invoke undefined behavior. To illustrate:
 
 ```cpp
 // https://godbolt.org/z/aMMGe1n8o
@@ -178,7 +178,7 @@ Animal * animal = cat;
 animal->react(); // undefined behaviour
 ```
 
-Calling `cat->react()`, correctly calls `Cat::react` via static dispatch. However with dynamic dispatch from its Base class method `Animal::react` via the call `animal->react()`, this would lead to Undefined Behaviour (a segmentation fault if in debug mode or compiler's reachability analysis doesn't see the memset. otherwise, the compiler **CAN** decide to simply ignore it).
+Calling `cat->react()`, correctly calls `Cat::react` via static dispatch. However with dynamic dispatch from its Base class method `Animal::react` via the call `animal->react()`, this would lead to undefined behavior (a segmentation fault if in debug mode or compiler's reachability analysis doesn't see the `memset`. otherwise, the compiler **CAN** decide to simply ignore it).
 
 To examine why this happens, let's implement our virtual classes with our custom dynamic dispatch/v-table:
 
@@ -196,7 +196,7 @@ struct Cat{
 
 ```
 
-For virtual dispatch to occur, the function pointer `Animal::react` would need to be called, the function pointer has been initialized to `0` by the `memset` call which is undefined behaviour when called.
+For virtual dispatch to occur, the function pointer `Animal::react` would need to be called, the function pointer has been initialized to `0` by the `memset` call which is undefined behavior when called.
 
 To fix our previous example, we would need to correctly initialize the implementation-defined virtual function dispatch table via the operator-new call, i.e:
 
