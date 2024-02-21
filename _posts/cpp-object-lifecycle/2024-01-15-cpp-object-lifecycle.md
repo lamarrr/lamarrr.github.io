@@ -249,7 +249,7 @@ Deallocating memory requires that any object on the placement memory has been de
 ## Applications
 
 #### Unions
-
+Feared
 
 #### Strict Aliasing, Dead-store, and Dead-load Optimizations
 
@@ -264,4 +264,8 @@ Implementing `Option<T>` would require that the lifecycle of the value type `T` 
 Just like `Option<T>`, `Result<T, E>` maintains the lifecycle of the value type `T` and `E`.
  
 #### Trivial Relocation
+[P2786R0](https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2023/p2786r0.pdf)
+[STL algorithms for trivial relocation](https://quuxplusone.github.io/blog/2023/03/03/relocate-algorithm-design/)
+
+
 #### Container Types
