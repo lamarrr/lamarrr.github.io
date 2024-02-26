@@ -23,7 +23,7 @@ B. Eng. Mechanical Engineering, Second Class Honors (Upper Division, 3.5/5 GPA)
 
 - Implemented keyboard and touch input simulation APIs using Linux's _uinput_ and _evdev_ subsystems for our OSS tool: [QAD](https://gitlab.com/CodethinkLabs/qad/qad) used in automated remote testing of embedded GUIs (C, Embedded Linux)
 - Improved [QAD's](https://gitlab.com/CodethinkLabs/qad/qad) screen capture latency by 26% by migrating the ILM screen capture backend to an async interface (C, Embedded Linux)
-- Implemented a Conda **USE SYSTEM-RELATED TERM** in [ClearlyDefined](https://github.com/clearlydefined/crawler/pull/532) for integration into our client's (Bloomberg) automated license/compliance testing pipeline  (Javascript, Node.JS, React, SPDX) 
+- Implemented a Conda **USE SYSTEM-RELATED TERM** in [ClearlyDefined](https://github.com/clearlydefined/crawler/pull/532) for integration into our client's automated license/compliance testing pipeline  (Javascript, Node.JS, React, SPDX) 
 
 ## LEWG and Embedded Systems Working Group, C++ Standards Committee`
 
@@ -41,7 +41,7 @@ B. Eng. Mechanical Engineering, Second Class Honors (Upper Division, 3.5/5 GPA)
 
 ### Software Engineering Intern (Mixed Reality), October 2020 – August 2021
 
-- Architected and implemented Microsoft Mesh mixed-reality's Unreal Engine plugin, Enabling Software Developers and Microsoft's Partners to easily onboard and integrate the Mesh platform into their products (Unreal Engine, C++, C#, MRTK)
+- Architected and implemented Microsoft Mesh's (Mixed Reality) Unreal Engine plugin, Enabling Software Developers and Microsoft's Partners to easily onboard and integrate the Mesh platform into their products (Unreal Engine, C++, C#, MRTK)
   ??- Held meetings with stakeholders and onboarded other Software Engineers to the implemented plugin
   ??- Contributed to code and design reviews with peers and stakeholders while providing feedback and ensuring best practices are followed
 - Mentored Students from the Microsoft Learn Cohort, Introducing them to the technology stack and design space of developing mixed-reality software, and provided feedback and guidance for their projects
@@ -56,9 +56,9 @@ B. Eng. Mechanical Engineering, Second Class Honors (Upper Division, 3.5/5 GPA)
 
 ### Deep Learning and Robotics Intern, July 2019 – October 2019
 
-- Implemented an [MPU6050 IMU driver firmware]() used in a robotic system for estimating position and orientation with an STM32 ARM MCU (C++, C)
+- Implemented an [MPU6050 IMU driver firmware](https://github.com/lamarrr/MPU60X0) used in a robotic system for estimating position and orientation with an STM32 ARM MCU (C++, C)
 - Implemented unit tests for Memory Allocation and Interpreter Invocations in Tensorflow Lite's C++ API, [PR # 32917]()
-- Built a mobile app and trained a low-latency deep learning model for recognizing Nigerian hand gestures from locally curated data sets (Dart & Python)
+- Built a mobile app and trained a low-latency quantized deep learning model for recognizing Nigerian hand gestures from locally curated data sets (Dart & Python)
 - Tutored 14 University of Abomey-Calavi Ph.D. students, introducing them to Machine Learning and Computer Vision
 
 ## Google Developer Students’ Club, University of Ilorin – Kwara, Nigeria
