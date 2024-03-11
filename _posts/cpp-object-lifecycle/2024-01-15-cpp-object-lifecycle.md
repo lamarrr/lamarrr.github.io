@@ -258,7 +258,43 @@ Whilst most codebases would outright declare unions as banned, they still remain
 
 #### Strict Aliasing, Dead-store, and Dead-load Optimizations
 
+Strict aliasing is a very important contract that enables an aggressive compiler optimization called dead-store and dead-load optimizations
+
+consider:
+
+```cpp
+struct A {
+    int value = 0;
+};
+
+struct B {
+    int value = 0;
+};
+
+A * a = get_A();
+B * b = get_B();
+
+a->value = 0;
+b->value = 1;
+a->value = 0;
+b->value = 1;
+
+```
+
+Here, we first write to `a` and then to `b`, writing to `a` and `b` the first time is **redundant** as there is a second write to both. But consider that `a` might be a `reinterpret_cast` of `b`, then we wouldn't be able to assume the first write to both values are redundant and we would need to write to both a second time because there's a possibility both are pointing to either the same or different objects.
+Consider the reasonable contract that type `A` can not alias (`reinterpret_cast`) type `B` then we can always perform this optimization and assume the both destinations are different.
+However, we would still need a backdoor in case we need to copy byte-wise from `a` to `b`, the exception to the contract being that `char`, `unsigned char`, and `signed char` can alias any object, otherwise encapsulated by [`std::bit_cast`](https://en.cppreference.com/w/cpp/numeric/bit_cast), this would mean we can write or read from any object of any type from a `char`, `unsigned char`, or `signed char`, this is called [the strict aliasing rule](https://gist.github.com/shafik/848ae25ee209f698763cffee272a58f8).
+
+
+==== example here, aliasing and bit cast
+
+==== strict aliasing rule in unions
+
+provided the compiler has no visibility to know where the two objects are sourced from as in this scenario,
+
 #### `std::aligned_storage` (deprecated in C++ 23). Link to paper
+
+Aligned storage is commonly used for implementing container types
 
 #### `Option<T>` (`std::optional<T>`)
 
