@@ -285,8 +285,18 @@ Here, we first write to `a` and then to `b`, writing to `a` and `b` the first ti
 Consider the reasonable contract that type `A` can not alias (`reinterpret_cast`) type `B` then we can always perform this optimization and assume the both destinations are different.
 However, we would still need a backdoor in case we need to copy byte-wise from `a` to `b`, the exception to the contract being that `char`, `unsigned char`, and `signed char` can alias any object, otherwise encapsulated by [`std::bit_cast`](https://en.cppreference.com/w/cpp/numeric/bit_cast), this would mean we can write or read from any object of any type from a `char`, `unsigned char`, or `signed char`, this is called [the strict aliasing rule](https://gist.github.com/shafik/848ae25ee209f698763cffee272a58f8).
 
+To illustrate the strict aliasing rule, let's look at the generate assembly for:
 
-==== example here, aliasing and bit cast
+```cpp
+A * a = get_A();
+B * b = get_B();
+
+a->value = 0;
+b->value = 1;
+a->value = 0;
+b->value = 1;
+
+```
 
 ==== strict aliasing rule in unions
 
