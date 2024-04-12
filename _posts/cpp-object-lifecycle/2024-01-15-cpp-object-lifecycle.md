@@ -1,14 +1,14 @@
 ---
 title: RAII and The C++ Object Lifecycle
-date: 2024-02-20 12:00:00 +00:00
-modified: 2024-01-20 12:00:00 +00:00
+date: 2024-04-10 12:00:00 +00:00
+modified: 2024-04-10 12:00:00 +00:00
 tags: [c++, RAII, memory]
 description: An analysis of the C++ Object Lifecycle
 image: "/cpp-object-lifecycle/omen.jpg"
 image_caption: Omen
 ---
 
-Most Discussions around RAII don't discuss the implicit contracts required to maintain the object's validity. These contracts help enable RAII and are typically required when implementing your custom container types, working with custom memory allocators, tag discriminated unions (i.e. `Result<T, E>` and `Option<T>`, `std::variant`), etc.
+Most Discussions around RAII/C++ Objects don't discuss the implicit contracts required to maintain the object's validity. These contracts are required when implementing your custom container types, working with custom memory allocators, tag discriminated unions (i.e. `Result<T, E>` and `Option<T>`, `std::variant`), etc.
 These are typically termed as 'unsafe' operations as they do require an understanding of the Object lifetime invariants or lifecycle.
 
 **NOTE**: We will not discuss exceptions nor the corner cases, unnecessary complexities, code path explosions, and limitations they introduce.
@@ -181,7 +181,7 @@ animal->react(); // undefined behaviour
 
 Calling `cat->react()`, correctly calls `Cat::react` via static dispatch. However with dynamic dispatch from its Base class method `Animal::react` via the call `animal->react()`, this would lead to undefined behavior (a segmentation fault if in debug mode or compiler's reachability analysis doesn't see the `memset`. otherwise, the compiler **CAN** decide to simply ignore it).
 
-To examine why this happens, let's implement our virtual classes with our custom dynamic dispatch/v-table:
+To examine why this happens, let's take a look at implementing implement a virtual class with a custom dynamic dispatch/v-table:
 
 ```cpp
 struct Animal{
@@ -197,7 +197,7 @@ struct Cat{
 
 ```
 
-For virtual dispatch to occur, the function pointer `Animal::react` would need to be called, the function pointer has been initialized to `0` by the `memset` call which is undefined behavior when called.
+For virtual dispatch to occur, the function pointer `Animal::react` would need to be called, but in the former example `Animal::react` would have been initialized to `0` by the `memset` call which is undefined behavior when `Animal::react` is invoked.
 
 To fix our previous example, we would need to correctly initialize the implementation-defined virtual function dispatch table via the operator-new call, i.e:
 
