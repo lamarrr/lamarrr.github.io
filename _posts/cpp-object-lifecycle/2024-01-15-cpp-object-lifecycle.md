@@ -10,6 +10,7 @@ image_caption: Omen
 
 Most Discussions around RAII/C++ Objects don't discuss the implicit contracts required to maintain the object's validity. These contracts are required when implementing your custom container types, working with custom memory allocators, tag discriminated unions (i.e. `Result<T, E>` and `Option<T>`, `std::variant`), etc.
 These are typically termed as 'unsafe' operations as they do require an understanding of the Object lifetime invariants or lifecycle.
+I would assume some basic familiarity with assembly as it is difficult to make sense of most of the article's experiments without them.
 
 **NOTE**: We will not discuss exceptions nor the corner cases, unnecessary complexities, code path explosions, and limitations they introduce.
 
@@ -137,7 +138,7 @@ int * x = (int*) malloc(4);
 Because `int` is a trivially constructible type (i.e. no special construction semantics) with no invariants, it can be constructed simply by writing to the memory address, and an `int` "object" would implicitly exist at memory address `x`.
 To construct an `int` or trivially constructible object at address `x` You can also use:
 
-- operator new
+- `operator new`
 - `memcpy`/`memmove`
 - `memset`/`memset_explicit`
 
@@ -252,10 +253,6 @@ Deallocating memory requires that any object on the placement memory has been de
 
 ## Applications
 
-#### Unions
-
-Whilst most codebases would outright declare unions as banned, they still remain an essential component of many data structures like `Option<T>`, `Result<T,E>`
-
 #### Strict Aliasing, Dead-store, and Dead-load Optimizations
 
 Strict aliasing is a very important contract that enables an aggressive compiler optimization called dead-store and dead-load optimizations
@@ -274,37 +271,123 @@ struct B {
 A * a = get_A();
 B * b = get_B();
 
-a->value = 0;
-b->value = 1;
-a->value = 0;
-b->value = 1;
+a->value = 6;
+b->value = 2;
+return a->value;
 
 ```
 
-Here, we first write to `a` and then to `b`, writing to `a` and `b` the first time is **redundant** as there is a second write to both. But consider that `a` might be a `reinterpret_cast` of `b`, then we wouldn't be able to assume the first write to both values are redundant and we would need to write to both a second time because there's a possibility both are pointing to either the same or different objects.
-Consider the reasonable contract that type `A` can not alias (`reinterpret_cast`) type `B` then we can always perform this optimization and assume the both destinations are different.
-However, we would still need a backdoor in case we need to copy byte-wise from `a` to `b`, the exception to the contract being that `char`, `unsigned char`, and `signed char` can alias any object, otherwise encapsulated by [`std::bit_cast`](https://en.cppreference.com/w/cpp/numeric/bit_cast), this would mean we can write or read from any object of any type from a `char`, `unsigned char`, or `signed char`, this is called [the strict aliasing rule](https://gist.github.com/shafik/848ae25ee209f698763cffee272a58f8).
+Here, we first write to `a` and then to `b`, Consider that `a` might be a `reinterpret_cast` of `b`, then we wouldn't be able to assume the value of `a` is still 6 because there's a possibility both are pointing to either the same or different objects.
+Whilst the implications of this at scale is non-obvious, it becomes drastic when the compiler's reachability analysis can't prove they are distinct objects.
+Consider the reasonable contract that type `A` can not alias (`reinterpret_cast`) type `B` then we can always perform an optimization and assume both objects are different, therefore mutations to type `B` can not be observed from type `A`.
+However, we would still need a backdoor in case we need to copy byte-wise from `a` to `b`, the exception to the contract being that `char`, `unsigned char`, and `signed char` can alias any object, otherwise encapsulated by [`std::bit_cast`](https://en.cppreference.com/w/cpp/numeric/bit_cast), this implies we can alias any object of any type from a `char`, `unsigned char`, or `signed char`, this is called [the strict aliasing rule](https://gist.github.com/shafik/848ae25ee209f698763cffee272a58f8).
 
 To illustrate the strict aliasing rule, let's look at the generate assembly for:
 
 ```cpp
+// https://godbolt.org/z/M18z53b35
 A * a = get_A();
 B * b = get_B();
 
-a->value = 0;
-b->value = 1;
-a->value = 0;
-b->value = 1;
+a->value = 6;
+b->value = 2;
+return a->value;
 
 ```
 
-==== strict aliasing rule in unions
+We can see from the example above that the compiler is able to perform a **Dead-Load Optimization** on the expression `a->value` and just assumes the value remains 6, which wouldn't have been possible if `a` could alias `b`.
 
-provided the compiler has no visibility to know where the two objects are sourced from as in this scenario,
+However, if we **really**, **really**, needed to alias both types, we could use the strangely-named function `std::launder` which would interfere with the compiler's reachability analysis.
+
+```cpp
+// https://godbolt.org/z/8rM6YbM75
+A* a = get_A();
+B* b = get_B();
+B* a_b = std::launder<B>((B*)a);
+a_b->value = 6;
+b->value = 2;
+return a->value;
+```
+
+From the generated assembly, the compiler is forced to perform the redundant load from `a_b`, because it _could_ be an alias of `b` because it's origin has been hidden by `std::launder`. Which is just like laundering money, hence, the name `:)`.
+Some languages/dialects have more aggressive form of this aliasing optimization/rule around mutability and aliasing, i.e. Rust's mutable reference (`& mut`) and Circle's mutable reference which requires only one mutable reference can be binded to an object at once. Which allow for more controversial and aggressive optimizations even across objects of the same type.
+This is comparable to the non-standard `restrict` qualifier (GCC/Clang: `__restrict__`, and MSVC: `__restrict`).
+
+To illustrate:
+
+```cpp
+// https://godbolt.org/z/ahd6xT8Gx
+
+int fn(A* a1, A* a2) {
+    a1->value = 6;
+    a2->value = 2;
+    return a1->value;
+}
+
+```
+
+As we said earlier, `a1` could alias/overlap with `a2` since they are the same type and there's no restrictions around mutability even within the same types, therefore the read expression `a1->value` would not optimized and we would still need to load the value, which would be redundant if we can ascertain that the objects do not infact overlap. Whilst the effect of this would likely go unnoticed on small objects, it would be noticable on an array of multiple elements due to the data dependency and cause a drastic slowdown.
+To optimize this we would use the `restrict` attribute, which implies objects with the attribute/qualifier do not alias other objects within that scope.
+
+```cpp
+// https://godbolt.org/z/TK94KjTjx
+int fn(A* RESTRICT a1, A* RESTRICT a2) {
+    a1->value = 6;
+    a2->value = 2;
+    return a1->value;
+}
+
+```
+
+#### Unions
+
+Whilst most "modern C++" codebases would outright ban unions due to the difficulty of their constraints or how easy it is to create bugs with them, they still remain an essential component of many data structures like `Option<T>`, `Result<T, E>`.
+
+Unions are used in scenarios where one of multiple objects can exist at a location. Effectively giving room to constrained object dynamism.
+Given only one object can exist at a union's address, the Object lifetime contracts still apply:
+
+- At least one of the specified variants must exist in the union
+- Any accessed object must have first been constructed
+- Only one object must exist or be constructed on the union at a point in time, for another object to be constructed in the union, the previously constructed object must first have been destroyed.
+
+Even though the variant types are clearly possibly aliasing, the strict aliasing rules still apply to them, i.e. variant type `A` can not alias variant type `B`.
+
+i.e.:
+
+```cpp
+// https://godbolt.org/z/jYMozMnTx
+union Which {
+    char c = 0;
+    Cat cat;
+};
+
+void react(Animal* a) { a->react(); }
+
+Which w;  // only c is initialized
+react(&w.cat);  // SISGSEGV beacause we accessed `cat` without initializing it
+
+```
+
+To fix:
+
+```cpp
+// https://godbolt.org/z/7G8s7vTP9
+
+Which w;  // only c is initialized
+// w.c.~char() - trivial, char doesn't have a destructor
+new (&w.cat) Cat{};  // now cat is initialized, we can access it
+react(&w.cat);       // purr...
+```
+
+As you can see in the example above, we can't simply pretend to use the union's other variant, we need to maintain the object lifecycle, by first deleting `c` (trivial in this case, so no-op), then constructing `cat` using operator `new` (non-trivial).
+This is a common footgun for C developers thinking C++ unions function similar to C's.
 
 #### `std::aligned_storage` (deprecated in C++ 23). Link to paper
 
-Aligned storage is commonly used for implementing container types
+Aligned Storage is meant to be a byte-wise representation of an object, with the object's lifetime context managed externally or determined by an external source of truth, thus still requiring the represented object's lifetime to be managed explicitly and correctly by the user.
+Aligned storage is commonly used for implementing container types, specifically when containing both initialized and uninitialized objects, i.e. Open-Addressing (Linear-Probing Hashmaps), (ECS) Sparse Sets, pre-allocated/arena allocators.
+
+**NOTE**: `std::aligned_storage` was [deprecated in C++23 (P1413R3)](https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2021/p1413r3.pdf)
 
 #### `Option<T>` (`std::optional<T>`)
 
