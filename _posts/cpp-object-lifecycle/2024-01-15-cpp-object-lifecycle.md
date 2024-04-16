@@ -374,18 +374,19 @@ To fix:
 // https://godbolt.org/z/7G8s7vTP9
 
 Which w;  // only c is initialized
-// w.c.~char() - trivial, char doesn't have a destructor
+// w.c.~char() - trivial, but char doesn't have a destructor
 new (&w.cat) Cat{};  // now cat is initialized, we can access it
 react(&w.cat);       // purr...
 ```
 
 As you can see in the example above, we can't simply pretend to use the union's other variant, we need to maintain the object lifecycle, by first deleting `c` (trivial in this case, so no-op), then constructing `cat` using operator `new` (non-trivial).
 This is a common footgun for C developers thinking C++ unions function similar to C's.
+The v-table for the `Cat` object needs to be initialized, by using `operator new`.
 
-#### `std::aligned_storage` (deprecated in C++ 23). Link to paper
+#### `std::aligned_storage` (deprecated in C++ 23)
 
 Aligned Storage is meant to be a byte-wise representation of an object, with the object's lifetime context managed externally or determined by an external source of truth, thus still requiring the represented object's lifetime to be managed explicitly and correctly by the user.
-Aligned storage is commonly used for implementing container types, specifically when containing both initialized and uninitialized objects, i.e. Open-Addressing (Linear-Probing Hashmaps), (ECS) Sparse Sets, pre-allocated/arena allocators.
+Aligned storage is commonly used for implementing container types, specifically when containing both initialized and uninitialized objects, i.e. Open-Addressing (Linear-Probing Hashmaps), (ECS) Sparse Sets, Static-Capacity Vectors, Stack-allocated vectors, pre-allocated/bump/arena allocators.
 
 **NOTE**: `std::aligned_storage` was [deprecated in C++23 (P1413R3)](https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2021/p1413r3.pdf)
 
@@ -400,6 +401,43 @@ Implementing `Option<T>` would require that the lifecycle of the value type `T` 
 Just like `Option<T>`, `Result<T, E>` maintains the lifecycle of the value type `T` and `E`.
 
 #### Trivial Relocation
+
+Trivial relocation implies the object can be safely moved from one memory address to another uninitialized memory address without invoking the object's move constructor and destructor. This means we can instead use a bitewise copy, typically via `memcpy` or `memmove`, essentially being "trivial", as long as we don't access the moved object's representation from the source memory address.
+
+consider:
+
+```cpp
+struct Buff{
+char * data_ = nullptr;
+size_t num_ = 0;
+Buff(){}
+Buff(Buff const&)=delete;
+Buff(Buff && b): data_{b.data_}, num_{b.num_} {
+    b.data_ = nullptr;
+    b.num_ = nullptr;
+}
+Buff& operator=(Buff const&) = delete;
+Buff& operator=(Buff && b) {
+    std::swap(data_, b.data_);
+    std::swap(num_, b.num_);
+    return *this;
+}
+char * data() {
+    return data_;
+}
+char const * data() const {
+    return data_;
+}
+size_t size() const {
+    return num_;
+}
+};
+
+```
+
+When the object is moved from it still needs to be left in a valid state for its destructor to be called.
+
+For `std::vector` and `std::string` types,
 
 [P2786R0](https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2023/p2786r0.pdf)
 [STL algorithms for trivial relocation](https://quuxplusone.github.io/blog/2023/03/03/relocate-algorithm-design/)
