@@ -323,7 +323,7 @@ return a->value;
 From the generated assembly, the compiler is forced to perform the redundant load from `a_b`, because it _could_ be an alias of `b` because it's origin has been hidden by `std::launder`. Which is just like laundering money, hence, the name `:)`.
 
 Some languages/dialects have a more aggressive form of this aliasing optimization/rule around mutability and aliasing, i.e. Rust's mutable reference (`& mut`) and [Circle's](https://github.com/seanbaxter/circle) mutable reference which requires only one mutable reference can be binded to an object at once, Which allow for more controversial and aggressive optimizations even across objects of the same type within a scope.
-This is comparable to the non-standard `restrict` qualifier (GCC/Clang: `__restrict__`, and MSVC: `__restrict`).
+This is comparable to the non-standard [`restrict`](https://en.cppreference.com/w/c/language/restrict) qualifier (GCC/Clang: `__restrict__`, and MSVC: `__restrict`).
 
 To illustrate:
 
@@ -357,13 +357,13 @@ Whilst most "modern C++" codebases would outright ban unions due to the difficul
 
 Unions are used in scenarios where one of multiple objects can exist at a location. Effectively giving room to constrained object dynamism/polymorphism.
 
-Given only one object can exist at a union's address, the Object lifetime contracts still apply:
+Given only one object can exist at a union's address, the Object lifetime contracts still apply, violations of which would lead to undefined behavior:
 
 - At least one of the specified variants must exist in the union
-- Any accessed object must have first been constructed
+- Any accessed object must have been constructed
 - Only one object must exist or be constructed in the union at a point in time, for another object to be constructed in the union, the previously constructed object must first have been destroyed.
 
-Even though the variant types are possibly aliasing, the strict aliasing rules still apply to them, i.e. variant type `A` can not alias distinct variant type `B`.
+Even though the variant types in the Union are possibly aliasing, the strict aliasing rules still apply to them, i.e. variant type `A` can not alias distinct variant type `B`.
 
 i.e.:
 
