@@ -1,7 +1,7 @@
 ---
 title: RAII and The C++ Object Lifecycle
-date: 2024-04-10 12:00:00 +00:00
-modified: 2024-04-10 12:00:00 +00:00
+date: 2024-04-17 12:00:00 +00:00
+modified: 2024-04-17 12:00:00 +00:00
 tags: [c++, RAII, memory]
 description: An analysis of the C++ Object Lifecycle
 image: "/cpp-object-lifecycle/omen.jpg"
@@ -116,8 +116,9 @@ Placement-new serves some important purposes:
 
 Let's look at these in practice:
 
+[_Godbolt_](https://godbolt.org/z/fq9KdP1eo)
+
 ```cpp
-// https://godbolt.org/z/fq9KdP1eo
 int * x = (int*) malloc(4);
 (*x)++; // undefined behavior
 ```
@@ -127,8 +128,9 @@ With optimizations enabled, the compiler can aggressively decide to ignore the i
 
 To fix:
 
+[_Godbolt_](https://godbolt.org/z/fq9KdP1eo)
+
 ```cpp
-// https://godbolt.org/z/fq9KdP1eo
 int * x = (int*) malloc(4);
 * x = 0;
 (*x)++;
@@ -143,8 +145,9 @@ To construct an `int` or trivially constructible object at address `x` You can a
 
 Now, let's take a look at a type with a more complex construction semantic (non-trivially-constructible):
 
+[_Godbolt_](https://godbolt.org/z/Kn3bccore)
+
 ```cpp
-// https://godbolt.org/z/Kn3bccore
 Obj* obj = (Obj*) malloc(sizeof(Obj));
 obj->data++; // undefined behavior, data is random value
 printf("data: %" PRIu32 "\n", obj->data);
@@ -156,8 +159,9 @@ This could lead to a number of contract violations/undefined behavior like doubl
 
 To fix:
 
+[_Godbolt_](https://godbolt.org/z/1M58e85Mh)
+
 ```cpp
-// https://godbolt.org/z/1M58e85Mh
 Obj* obj = (Obj*) malloc(sizeof(Obj));
 new (obj) Obj{};  // constructs object of type Obj at the address
 obj->data++;  // ok: data is increased from default value of 1 to 2
@@ -170,8 +174,9 @@ The placement new constructs the object of type `Obj` at address `obj`, and now 
 Placement-new also serves to initialize the virtual function table pointers for the object to be usable in virtual dispatch.
 The compiler's reachability analysis **MIGHT** decide an object doesn't exist at a memory address if it is not constructed with placement new and thus invoke undefined behavior. To illustrate:
 
+[_Godbolt_](https://godbolt.org/z/aMMGe1n8o)
+
 ```cpp
-// https://godbolt.org/z/aMMGe1n8o
 Cat * cat = (Cat*) malloc(sizeof(Cat));
 memset(cat, 0, sizeof(Cat));
 cat->react(); // static dispatches to Cat::react()
@@ -201,8 +206,9 @@ For virtual dispatch to occur, the function pointer `Animal::react` would need t
 
 To fix our previous example, we would need to correctly initialize the implementation-defined virtual function dispatch table via the operator-new call, i.e:
 
+[_Godbolt_](https://godbolt.org/z/z3rds6hPc)
+
 ```cpp
-// https://godbolt.org/z/z3rds6hPc
 Cat * cat = (Cat*) malloc(sizeof(Cat));
 new (cat) Cat{}; // initializes v-table
 cat->react(); // static dispatches to Cat::react()
@@ -283,8 +289,9 @@ However, we would still need a backdoor in case we need to copy byte-wise from `
 
 To illustrate the strict aliasing rule, let's look at the generated assembly for:
 
+[_Godbolt_](https://godbolt.org/z/M18z53b35)
+
 ```cpp
-// https://godbolt.org/z/M18z53b35
 A * a = get_A();
 B * b = get_B();
 
@@ -298,8 +305,9 @@ We can see from the example above that the compiler is able to perform a **Dead-
 
 However, if we **really**, **really**, needed to alias both types, we could use the strangely-named function `std::launder` which would interfere with the compiler's reachability analysis.
 
+[_Godbolt_](https://godbolt.org/z/8rM6YbM75)
+
 ```cpp
-// https://godbolt.org/z/8rM6YbM75
 A* a = get_A();
 B* b = get_B();
 B* a_b = std::launder<B>((B*)a);
@@ -314,28 +322,27 @@ This is comparable to the non-standard `restrict` qualifier (GCC/Clang: `__restr
 
 To illustrate:
 
-```cpp
-// https://godbolt.org/z/ahd6xT8Gx
+[_Godbolt_](https://godbolt.org/z/ahd6xT8Gx)
 
+```cpp
 int fn(A* a1, A* a2) {
     a1->value = 6;
     a2->value = 2;
     return a1->value;
 }
-
 ```
 
 As we said earlier, `a1` could alias/overlap with `a2` since they are the same type and there are no restrictions around mutability even within the same types, therefore the read expression `a1->value` would not optimized and we would still need to load the value, which would be redundant if we can ascertain that the objects do not in fact alias/overlap. Whilst the effect of this would likely go unnoticed on small objects, it would be noticeable on an array of multiple elements due to the data dependency and cause a drastic slowdown.
 To optimize this we would use the `restrict` attribute, which implies objects with the attribute/qualifier do not alias other objects within that scope.
 
+[_Godbolt_](https://godbolt.org/z/TK94KjTjx)
+
 ```cpp
-// https://godbolt.org/z/TK94KjTjx
 int fn(A* RESTRICT a1, A* RESTRICT a2) {
     a1->value = 6;
     a2->value = 2;
     return a1->value;
 }
-
 ```
 
 #### Unions
@@ -353,8 +360,9 @@ Even though the variant types are possibly aliasing, the strict aliasing rules s
 
 i.e.:
 
+[_Godbolt_](https://godbolt.org/z/jYMozMnTx)
+
 ```cpp
-// https://godbolt.org/z/jYMozMnTx
 union Which {
     char c = 0;
     Cat cat;
@@ -369,9 +377,9 @@ react(&w.cat);  // SISGSEGV because we accessed `cat` without initializing it
 
 To fix:
 
-```cpp
-// https://godbolt.org/z/7G8s7vTP9
+[_Godbolt_](https://godbolt.org/z/7G8s7vTP9)
 
+```cpp
 Which w;  // only c is initialized
 // w.c.~char() - trivial, but char doesn't have a destructor
 new (&w.cat) Cat{};  // now cat is initialized, we can access it
