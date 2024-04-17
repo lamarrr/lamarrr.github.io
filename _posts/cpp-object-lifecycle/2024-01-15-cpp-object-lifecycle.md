@@ -307,7 +307,7 @@ return a->value;
 
 We can see from the example above that the compiler is able to perform a **Dead-Load Optimization** on the expression `a->value` and just assumes the value remains 6, which wouldn't have been possible if `a` could alias `b`.
 
-However, if we **really**, **really**, needed to alias both types, we could use the strangely-named function `std::launder` which would interfere with the compiler's reachability analysis.
+However, if we **really**, **really**, needed to alias both types, we could use the strangely-named function [`std::launder`](https://en.cppreference.com/w/cpp/utility/launder) which would interfere with the compiler's reachability analysis.
 
 [_Godbolt_](https://godbolt.org/z/8rM6YbM75)
 
