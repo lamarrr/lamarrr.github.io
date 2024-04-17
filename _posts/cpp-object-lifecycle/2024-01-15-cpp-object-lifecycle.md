@@ -9,6 +9,7 @@ image_caption: Omen
 ---
 
 Most Discussions around RAII/C++ Objects don't discuss the implicit contracts required to maintain the object's validity. These contracts are required when implementing your custom container types, working with custom memory allocators, tag discriminated unions (i.e. `Result<T, E>` and `Option<T>`, `std::variant<T...>`), etc.
+
 These are typically termed as 'unsafe' operations as they do require an understanding of the Object lifetime invariants or lifecycle.
 I would assume some basic familiarity with assembly as it is difficult to make sense of some of the article's experiments without them.
 
@@ -247,6 +248,7 @@ Assignment being trivial means the objects can be assigned to another object wit
 
 Destruction requires that a valid object exists at a memory location.
 Destructing an object at a memory address implies that no object exists at that memory address and the memory is now left in an uninitialized state.
+
 Unlike trivial constructions and assignments, trivial destruction implies a no-op.
 
 - [non-trivial destruction (`~T()`)](https://en.cppreference.com/w/cpp/types/is_destructible)
@@ -284,7 +286,9 @@ return a->value;
 
 Here, we first write to `a` and then to `b`, Consider that `a` might be a `reinterpret_cast` of `b`, then we wouldn't be able to assume the value of `a` is still 6 because there's a possibility both are pointing to either the same or different objects.
 Whilst the implications of this at scale are non-obvious, it becomes drastic when the compiler's reachability analysis can't prove they are distinct objects.
+
 Consider the reasonable contract that type `A` can not alias (`reinterpret_cast`) type `B` then we can always perform an optimization and assume both objects are different, therefore mutations to type `B` can not be observed from type `A`.
+
 However, we would still need a backdoor in case we need to copy byte-wise from `a` to `b`, the exception to the contract being that `char`, `unsigned char`, and `signed char` can alias any object, otherwise encapsulated by [`std::bit_cast`](https://en.cppreference.com/w/cpp/numeric/bit_cast), this implies we can alias any object of any type from a `char`, `unsigned char`, or `signed char`, this is called [the strict aliasing rule](https://gist.github.com/shafik/848ae25ee209f698763cffee272a58f8).
 
 To illustrate the strict aliasing rule, let's look at the generated assembly for:
@@ -317,6 +321,7 @@ return a->value;
 ```
 
 From the generated assembly, the compiler is forced to perform the redundant load from `a_b`, because it _could_ be an alias of `b` because it's origin has been hidden by `std::launder`. Which is just like laundering money, hence, the name `:)`.
+
 Some languages/dialects have a more aggressive form of this aliasing optimization/rule around mutability and aliasing, i.e. Rust's mutable reference (`& mut`) and [Circle's](https://github.com/seanbaxter/circle) mutable reference which requires only one mutable reference can be binded to an object at once, Which allow for more controversial and aggressive optimizations even across objects of the same type within a scope.
 This is comparable to the non-standard `restrict` qualifier (GCC/Clang: `__restrict__`, and MSVC: `__restrict`).
 
@@ -333,6 +338,7 @@ int fn(A* a1, A* a2) {
 ```
 
 As we said earlier, `a1` could alias/overlap with `a2` since they are the same type and there are no restrictions around mutability even within the same types, therefore the read expression `a1->value` would not optimized and we would still need to load the value, which would be redundant if we can ascertain that the objects do not in fact alias/overlap. Whilst the effect of this would likely go unnoticed on small objects, it would be noticeable on an array of multiple elements due to the data dependency and cause a drastic slowdown.
+
 To optimize this we would use the `restrict` attribute, which implies objects with the attribute/qualifier do not alias other objects within that scope.
 
 [_Godbolt_](https://godbolt.org/z/TK94KjTjx)
@@ -350,6 +356,7 @@ int fn(A* RESTRICT a1, A* RESTRICT a2) {
 Whilst most "modern C++" codebases would outright ban unions due to the difficulty of their constraints or how easy it is to create bugs with them, they remain an essential component of many data structures like `Option<T>`, `Result<T, E>`.
 
 Unions are used in scenarios where one of multiple objects can exist at a location. Effectively giving room to constrained object dynamism/polymorphism.
+
 Given only one object can exist at a union's address, the Object lifetime contracts still apply:
 
 - At least one of the specified variants must exist in the union
@@ -387,12 +394,14 @@ react(&w.cat);       // purr...
 ```
 
 As you can see in the example above, we can't simply pretend to use the union's other variant, we need to maintain the object lifecycle, by first deleting `c` (trivial in this case, so no-op), then constructing `cat` using `operator new` (non-trivial) which would solve the UB by initializing the v-table for the `Cat` object.
+
 This is a common footgun for C developers thinking C++ unions function similarly to C's.
 Also, note that if the union contains non-trivial types, the construction, destruction, assignment, and move operations, need to be manually and explicitly implemented.
 
 #### `std::aligned_storage` (deprecated in C++ 23)
 
 Aligned Storage is meant to be a byte-wise representation of an object, with the object's lifetime context managed externally or determined by an external source of truth, thus still requiring the represented object's lifetime to be managed explicitly and correctly by the user, they work similar to unions but have the caveat that they are untyped.
+
 Aligned storage is commonly used for implementing container types, specifically when containing both initialized and uninitialized objects, i.e. Open-Addressing (Linear-Probing Hashmaps), (ECS) Sparse Sets, Static-Capacity Vectors, Stack-allocated vectors, pre-allocated/bump/arena allocators.
 
 **NOTE**: `std::aligned_storage` was [deprecated in C++23 (P1413R3)](https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2021/p1413r3.pdf)
@@ -410,6 +419,7 @@ Just like `Option<T>`, `Result<T, E>` maintains the lifecycle of the value type 
 #### Trivial Relocation
 
 Trivial relocation is an upcoming C++ 26 Feature I'm really excited about that further extends the C++ object lifecycle and gives room for further optimizations.
+
 Relocation is a combination of move from source object to uninitialized destination and destruction of the object left in the source (_destructive move<sup>TM</sup>_).
 
 i.e:
@@ -454,7 +464,9 @@ struct MyStr {
 ```
 
 `MyStr` like many container types don't have trivial move constructors and destructors, but their object representation can be trivially relocated.
+
 For small locally contained objects, non-trivial-relocation may not affect performance much as the compiler would typically be able to optimize the code generated by the move constructor and destructor, but for implementing generic container types like `std::vector` where a large number of these objects are frequently shifted around (i.e. during `push_back`, `insert`, move of elements from one container to another), trivial relocation (`memcpy`/`memmove`) would perform better than executing the non-trivial move constructor and destructor that would produce redundant operations, like the setting of `MyStr::num_` to `nullptr` and `MyStr::size_` to `0` (as in `std::vector<MyStr>` by `MyStr::MyStr(Mystr &&)`). This is a consequence of the C++ object model requiring move constructors to leave the source object in a _valid<sup>TM</sup>_ but _unspecified_ state for the destructor to still run correctly.
+
 Also note that if your allocator supports `realloc`, trivial relocations means `grow`'ing your `vector` type's capacity could be collapsed into a zero-cost `realloc` (the Operating System would often just need to extend the allocation's entry if there's enough space within the page) rather than allocating a new separate memory, moving the objects to that memory, destroying the residual objects in the source memory and then free-ing the source memory.
 
 This would end up extending our C++ object lifecycle to (from C++ 26):
