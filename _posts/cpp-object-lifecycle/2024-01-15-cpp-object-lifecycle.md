@@ -10,7 +10,7 @@ image_caption: Omen
 
 Most Discussions around RAII/C++ Objects don't discuss the implicit contracts required to maintain the object's validity. These contracts are required when implementing your custom container types, working with custom memory allocators, tag discriminated unions (i.e. `Result<T, E>` and `Option<T>`, `std::variant<T...>`), etc.
 These are typically termed as 'unsafe' operations as they do require an understanding of the Object lifetime invariants or lifecycle.
-I would assume some basic familiarity with assembly as it is difficult to make sense of most of the article's experiments without them.
+I would assume some basic familiarity with assembly as it is difficult to make sense of some of the article's experiments without them.
 
 **NOTE**: We will not discuss exceptions nor the corner cases, unnecessary complexities, code path explosions, and limitations they introduce.
 
@@ -32,8 +32,7 @@ The lifecycle of a C++ Object is illustrated as:
 
 A violation of this lifecycle **WILL** lead to undefined behavior, typically: memory leak, double-free, uninitialized memory read/write, unaligned read/writes, `nullptr` dereference, out-of-bound read/writes, etc.
 
-A general rule of thumb for testing lifecycle violations in containers is to ensure the number of constructions is equal to the number of destructions, which is the core idea behind RAII.
-The types we will be using for demonstrating some of these concepts are defined as follows:
+A rule of thumb I use for testing lifecycle violations in containers is to ensure the number of constructions is equal to the number of destructions. The types we will be using for demonstrating some of these concepts are defined as follows:
 
 ```cpp
 
@@ -107,8 +106,8 @@ An object's memory **can** be sourced from the stack (i.e. `alloca`, `malloca`) 
 
 This is where the lifecycle of an object begins. For non-trivially constructible types this implies a placement new of the object on the placement memory and for trivially constructible types, any memory write operation on the object's placement memory.
 
-The object's placement memory address **MUST** be sized to _at least_ the object's size and the object placement address within the memory **MUST** be aligned to a multiple of the object's alignment. If an object is constructed at a memory location not properly sized for it, it can lead to Undefined Behaviour (out-of-bound reads). Non-suitably aligned placement memory can lead to unaligned read & writes (undefined behavior, which on some CPU architectures can crash your application with a `SIGILL` or just lead to degraded performance).
-Reading an uninitialized/non-constructed object is Undefined Behaviour and catastrophic.
+The object's placement memory address **MUST** be sized to _at least_ the object's size and the object placement address within the memory **MUST** be aligned to a multiple of the object's alignment. If an object is constructed at a memory location not properly sized for it, it can lead to Undefined Behavior (out-of-bound reads). Non-suitably aligned placement memory can lead to unaligned read & writes (undefined behavior, which on some CPU architectures can crash your application with a `SIGILL` or just lead to degraded performance).
+Reading an uninitialized/non-constructed object is Undefined Behavior and catastrophic.
 
 Placement-new serves some important purposes:
 
@@ -120,11 +119,11 @@ Let's look at these in practice:
 ```cpp
 // https://godbolt.org/z/fq9KdP1eo
 int * x = (int*) malloc(4);
-(*x)++; // undefined behaviour
+(*x)++; // undefined behavior
 ```
 
 The code above invokes undefined behavior due to an uninitialized read of an `int` at memory x.
-With optimizations enabled, the compiler can aggressively decide to totally ignore the increment operation.
+With optimizations enabled, the compiler can aggressively decide to ignore the increment operation.
 
 To fix:
 
@@ -147,7 +146,7 @@ Now, let's take a look at a type with a more complex construction semantic (non-
 ```cpp
 // https://godbolt.org/z/Kn3bccore
 Obj* obj = (Obj*) malloc(sizeof(Obj));
-obj->data++; // undefined behaviour, data is random value
+obj->data++; // undefined behavior, data is random value
 printf("data: %" PRIu32 "\n", obj->data);
 counter.log(); // num_constructs = 0, num_destructs = 0
 ```
@@ -177,10 +176,10 @@ Cat * cat = (Cat*) malloc(sizeof(Cat));
 memset(cat, 0, sizeof(Cat));
 cat->react(); // static dispatches to Cat::react()
 Animal * animal = cat;
-animal->react(); // undefined behaviour
+animal->react(); // undefined behavior
 ```
 
-Calling `cat->react()`, correctly calls `Cat::react` via static dispatch. However with dynamic dispatch from its Base class method `Animal::react` via the call `animal->react()`, this would lead to undefined behavior (a segmentation fault if in debug mode or compiler's reachability analysis doesn't see the `memset`. otherwise, the compiler **CAN** decide to simply ignore it).
+Calling `cat->react()`, correctly calls `Cat::react` via static dispatch. However with dynamic dispatch from its Base class method `Animal::react` via the type-erased call `animal->react()`, this would lead to undefined behavior (a segmentation fault if in debug mode or compiler's reachability analysis doesn't see the `memset`. Otherwise, the compiler **CAN** decide to simply ignore it given it is undefined behavior).
 
 To examine why this happens, let's take a look at implementing implement a virtual class with a custom dynamic dispatch/v-table:
 
@@ -198,7 +197,7 @@ struct Cat{
 
 ```
 
-For virtual dispatch to occur, the function pointer `Animal::react` would need to be called, but in the former example `Animal::react` would have been initialized to `0` by the `memset` call which is undefined behavior when `Animal::react` is invoked.
+For virtual dispatch to occur, the function pointer `Animal::react` would need to be called, but in the former example `Animal::react` would have been initialized to `0` by the `memset` call which is undefined behavior when `animal->react()` is invoked.
 
 To fix our previous example, we would need to correctly initialize the implementation-defined virtual function dispatch table via the operator-new call, i.e:
 
@@ -228,7 +227,7 @@ Object construction is also split into several categories, namely:
 
 #### Assign Object
 
-Copy and Move assignment requires that an object already exists at a memory address and we would like to assign another object to it. Meaning both the source and destination addresses contain valid intialized objects.
+Copy and Move assignment requires that an object already exists at a memory address and we would like to assign another object to it. Meaning both the source and destination addresses contain valid initialized objects.
 Object Assignment is split into several categories, namely:
 
 - [copy assignment (`T& operator=(U const&)`)](https://en.cppreference.com/w/cpp/types/is_copy_assignable)
@@ -249,7 +248,7 @@ Unlike trivial constructions and assignments, trivial destruction implies a no-o
 
 #### Deallocate Memory
 
-Deallocating memory requires that any object on the placement memory has been destroyed. The memory is returned to its allocator and **SHOULD** no longer be referenced nor used.
+Deallocating memory requires that any object on the placement memory has been destroyed. The memory is returned to its allocator and **SHOULD** no longer be referenced or used.
 
 ## Applications
 
@@ -278,11 +277,11 @@ return a->value;
 ```
 
 Here, we first write to `a` and then to `b`, Consider that `a` might be a `reinterpret_cast` of `b`, then we wouldn't be able to assume the value of `a` is still 6 because there's a possibility both are pointing to either the same or different objects.
-Whilst the implications of this at scale is non-obvious, it becomes drastic when the compiler's reachability analysis can't prove they are distinct objects.
+Whilst the implications of this at scale are non-obvious, it becomes drastic when the compiler's reachability analysis can't prove they are distinct objects.
 Consider the reasonable contract that type `A` can not alias (`reinterpret_cast`) type `B` then we can always perform an optimization and assume both objects are different, therefore mutations to type `B` can not be observed from type `A`.
 However, we would still need a backdoor in case we need to copy byte-wise from `a` to `b`, the exception to the contract being that `char`, `unsigned char`, and `signed char` can alias any object, otherwise encapsulated by [`std::bit_cast`](https://en.cppreference.com/w/cpp/numeric/bit_cast), this implies we can alias any object of any type from a `char`, `unsigned char`, or `signed char`, this is called [the strict aliasing rule](https://gist.github.com/shafik/848ae25ee209f698763cffee272a58f8).
 
-To illustrate the strict aliasing rule, let's look at the generate assembly for:
+To illustrate the strict aliasing rule, let's look at the generated assembly for:
 
 ```cpp
 // https://godbolt.org/z/M18z53b35
@@ -310,7 +309,7 @@ return a->value;
 ```
 
 From the generated assembly, the compiler is forced to perform the redundant load from `a_b`, because it _could_ be an alias of `b` because it's origin has been hidden by `std::launder`. Which is just like laundering money, hence, the name `:)`.
-Some languages/dialects have more aggressive form of this aliasing optimization/rule around mutability and aliasing, i.e. Rust's mutable reference (`& mut`) and Circle's mutable reference which requires only one mutable reference can be binded to an object at once. Which allow for more controversial and aggressive optimizations even across objects of the same type.
+Some languages/dialects have a more aggressive form of this aliasing optimization/rule around mutability and aliasing, i.e. Rust's mutable reference (`& mut`) and [Circle's](https://github.com/seanbaxter/circle) mutable reference which requires only one mutable reference can be binded to an object at once, Which allow for more controversial and aggressive optimizations even across objects of the same type within a scope.
 This is comparable to the non-standard `restrict` qualifier (GCC/Clang: `__restrict__`, and MSVC: `__restrict`).
 
 To illustrate:
@@ -326,7 +325,7 @@ int fn(A* a1, A* a2) {
 
 ```
 
-As we said earlier, `a1` could alias/overlap with `a2` since they are the same type and there's no restrictions around mutability even within the same types, therefore the read expression `a1->value` would not optimized and we would still need to load the value, which would be redundant if we can ascertain that the objects do not infact overlap. Whilst the effect of this would likely go unnoticed on small objects, it would be noticable on an array of multiple elements due to the data dependency and cause a drastic slowdown.
+As we said earlier, `a1` could alias/overlap with `a2` since they are the same type and there are no restrictions around mutability even within the same types, therefore the read expression `a1->value` would not optimized and we would still need to load the value, which would be redundant if we can ascertain that the objects do not in fact alias/overlap. Whilst the effect of this would likely go unnoticed on small objects, it would be noticeable on an array of multiple elements due to the data dependency and cause a drastic slowdown.
 To optimize this we would use the `restrict` attribute, which implies objects with the attribute/qualifier do not alias other objects within that scope.
 
 ```cpp
@@ -341,16 +340,16 @@ int fn(A* RESTRICT a1, A* RESTRICT a2) {
 
 #### Unions
 
-Whilst most "modern C++" codebases would outright ban unions due to the difficulty of their constraints or how easy it is to create bugs with them, they still remain an essential component of many data structures like `Option<T>`, `Result<T, E>`.
+Whilst most "modern C++" codebases would outright ban unions due to the difficulty of their constraints or how easy it is to create bugs with them, they remain an essential component of many data structures like `Option<T>`, `Result<T, E>`.
 
-Unions are used in scenarios where one of multiple objects can exist at a location. Effectively giving room to constrained object dynamism.
+Unions are used in scenarios where one of multiple objects can exist at a location. Effectively giving room to constrained object dynamism/polymorphism.
 Given only one object can exist at a union's address, the Object lifetime contracts still apply:
 
 - At least one of the specified variants must exist in the union
 - Any accessed object must have first been constructed
-- Only one object must exist or be constructed on the union at a point in time, for another object to be constructed in the union, the previously constructed object must first have been destroyed.
+- Only one object must exist or be constructed in the union at a point in time, for another object to be constructed in the union, the previously constructed object must first have been destroyed.
 
-Even though the variant types are clearly possibly aliasing, the strict aliasing rules still apply to them, i.e. variant type `A` can not alias variant type `B`.
+Even though the variant types are possibly aliasing, the strict aliasing rules still apply to them, i.e. variant type `A` can not alias distinct variant type `B`.
 
 i.e.:
 
@@ -364,7 +363,7 @@ union Which {
 void react(Animal* a) { a->react(); }
 
 Which w;  // only c is initialized
-react(&w.cat);  // SISGSEGV beacause we accessed `cat` without initializing it
+react(&w.cat);  // SISGSEGV because we accessed `cat` without initializing it
 
 ```
 
@@ -379,21 +378,21 @@ new (&w.cat) Cat{};  // now cat is initialized, we can access it
 react(&w.cat);       // purr...
 ```
 
-As you can see in the example above, we can't simply pretend to use the union's other variant, we need to maintain the object lifecycle, by first deleting `c` (trivial in this case, so no-op), then constructing `cat` using operator `new` (non-trivial).
-This is a common footgun for C developers thinking C++ unions function similar to C's.
-The v-table for the `Cat` object needs to be initialized, by using `operator new`.
+As you can see in the example above, we can't simply pretend to use the union's other variant, we need to maintain the object lifecycle, by first deleting `c` (trivial in this case, so no-op), then constructing `cat` using `operator new` (non-trivial) which would solve the UB by initializing the v-table for the `Cat` object.
+This is a common footgun for C developers thinking C++ unions function similarly to C's.
+Also, note that if the union contains non-trivial types, the construction, destruction, assignment, and move operations, need to be manually and explicitly implemented.
 
 #### `std::aligned_storage` (deprecated in C++ 23)
 
-Aligned Storage is meant to be a byte-wise representation of an object, with the object's lifetime context managed externally or determined by an external source of truth, thus still requiring the represented object's lifetime to be managed explicitly and correctly by the user.
+Aligned Storage is meant to be a byte-wise representation of an object, with the object's lifetime context managed externally or determined by an external source of truth, thus still requiring the represented object's lifetime to be managed explicitly and correctly by the user, they work similar to unions but have the caveat that they are untyped.
 Aligned storage is commonly used for implementing container types, specifically when containing both initialized and uninitialized objects, i.e. Open-Addressing (Linear-Probing Hashmaps), (ECS) Sparse Sets, Static-Capacity Vectors, Stack-allocated vectors, pre-allocated/bump/arena allocators.
 
 **NOTE**: `std::aligned_storage` was [deprecated in C++23 (P1413R3)](https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2021/p1413r3.pdf)
 
 #### `Option<T>` (`std::optional<T>`)
 
-`Option<T>` implies an object of type `T` may or may not exist, this means the object is either initialized or not initialized at the placement address and its existence is recognized by a discrimating enum/boolean.
-Implementing `Option<T>` would require that the lifecycle of the value type `T` is maintained correctly. i.e. number of constructions is same as the number of destructions, the object's constructor is called before being regarded as existing in the `Option`.
+`Option<T>` implies an object of type `T` may or may not exist, this means the object is either initialized or not initialized at the placement address and its existence is recognized by a discriminating enum/boolean.
+Implementing `Option<T>` would require that the lifecycle of the value type `T` is maintained correctly. i.e. the number of constructions is same as the number of destructions, the object's constructor is called before being regarded as existing in the `Option`.
 
 #### `Result<T, E>` (`std::expected<T, E>`)
 
@@ -402,8 +401,8 @@ Just like `Option<T>`, `Result<T, E>` maintains the lifecycle of the value type 
 
 #### Trivial Relocation
 
-Trivial relocation is an upcoming C++ 26 Feature I'm really excited about that further extends the C++ object model and gives room for further optimizations.
-Relocation is a combination of move from source object to uninitialized destination and destruction of the object left in the source.
+Trivial relocation is an upcoming C++ 26 Feature I'm really excited about that further extends the C++ object lifecycle and gives room for further optimizations.
+Relocation is a combination of move from source object to uninitialized destination and destruction of the object left in the source (_destructive move<sup>TM</sup>_).
 
 i.e:
 
@@ -414,7 +413,7 @@ void relocate(A * src, A * dst){
 }
 ```
 
-Trivial relocation implies the object can be safely moved from one memory address to another uninitialized memory address without invoking the object's move constructor and destructor, essentially capturing the "move to destination and destroy source" operation. This means we can instead use a bitewise copy, typically via `memcpy` or `memmove`, essentially being "trivial", as long as we don't access the moved object's representation from the source memory address.
+Trivial relocation implies the object can be safely moved from one memory address to another uninitialized memory address without invoking the object's move constructor and destructor, essentially capturing the "move to destination and destroy source" operation. This means we can instead use a bitewise copy, typically via `memcpy` or `memmove`, essentially being "trivial", as long as we don't treat the source memory address as containing a valid object after the relocation.
 
 i.e:
 
@@ -423,8 +422,6 @@ void trivial_relocate(A * src, A * dst){
     memcpy(dst, src, sizeof(A));
 }
 ```
-
-This is essentially a _destructive move<sup>TM</sup>_ as long as we promise not to access the object representation contained in `src` after performing the trivial relocation.
 
 Note that trivial relocation doesn't always imply the move constructor and destructors are trivial.
 
@@ -435,7 +432,7 @@ struct MyStr {
     char* data_ = nullptr;
     size_t size_ = 0;
     MyStr() {}
-    MyStr(char* data, size_t num) : data_{new char[num]}, size_{num} {}
+    MyStr(char* data, size_t num) : data_{(char*)malloc(num)}, size_{num} {}
     MyStr(MyStr const&) = delete;
     MyStr& operator=(MyStr&&) = delete;
     MyStr& operator=(MyStr const&) = delete;
@@ -443,13 +440,13 @@ struct MyStr {
         a.data_ = nullptr;
         a.size_ = 0;
     }
-    ~MyStr() { delete[] data_; }
+    ~MyStr() { free(data); }
 };
 
 ```
 
 `MyStr` like many container types don't have trivial move constructors and destructors, but their object representation can be trivially relocated.
-For small objects, non-trivial-relocation may not affect performance much as the compiler would typically be able to optimize the code generated by the move constructor and destructor, but for implementing generic container types like `std::vector` where a large number of these objects are frequently shifted around (i.e. during `push_back`, `insert`, move of elements from one container to another), trivial relocation (`memcpy`/`memmove`) would perform better than executing the non-trivial move constructor and destructor that would produce redundant operations, like the setting of `MyStr::num_` to `nullptr` and `MyStr::size_` to `0` (as in `std::vector<MyStr>`). This is a consequence of the C++ object model requiring move constructors to leave the source object in a _valid<sup>TM</sup>_ but _unspecified_ state for the destructor to still run correctly.
+For small locally contained objects, non-trivial-relocation may not affect performance much as the compiler would typically be able to optimize the code generated by the move constructor and destructor, but for implementing generic container types like `std::vector` where a large number of these objects are frequently shifted around (i.e. during `push_back`, `insert`, move of elements from one container to another), trivial relocation (`memcpy`/`memmove`) would perform better than executing the non-trivial move constructor and destructor that would produce redundant operations, like the setting of `MyStr::num_` to `nullptr` and `MyStr::size_` to `0` (as in `std::vector<MyStr>` by `MyStr::MyStr(Mystr &&)`). This is a consequence of the C++ object model requiring move constructors to leave the source object in a _valid<sup>TM</sup>_ but _unspecified_ state for the destructor to still run correctly.
 Also note that if your allocator supports `realloc`, trivial relocations means `grow`'ing your `vector` type's capacity could be collapsed into a zero-cost `realloc` (the Operating System would often just need to extend the allocation's entry if there's enough space within the page) rather than allocating a new separate memory, moving the objects to that memory, destroying the residual objects in the source memory and then free-ing the source memory.
 
 This would end up extending our C++ object lifecycle to (from C++ 26):
