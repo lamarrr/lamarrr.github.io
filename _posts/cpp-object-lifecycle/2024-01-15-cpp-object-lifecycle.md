@@ -1,7 +1,7 @@
 ---
 title: RAII and The C++ Object Lifecycle
-date: 2024-04-17 12:00:00 +00:00
-modified: 2024-04-17 12:00:00 +00:00
+date: 2024-05-01 12:00:00 +00:00
+modified: 2024-05-01 12:00:00 +00:00
 tags: [c++, RAII, memory]
 description: An analysis of the C++ Object Lifecycle
 image: "/cpp-object-lifecycle/omen.jpg"
@@ -20,12 +20,12 @@ The lifecycle of a C++ Object is illustrated as:
 ```txt
   allocate placement memory
              ||
-             ||                       ==============
-             \/                       ||          ||
-====>  construct object  =====> assign object <=====
-||           ||                       ||
-||           \/                       ||
-====== destruct object  <===============
+             ||                     ============
+             \/                     ||        ||
+====>  construct object  ===> assign object <===
+||           ||                     ||
+||           \/                     ||
+====== destruct object  <=============
              ||
              \/
  deallocate placement memory
@@ -95,7 +95,7 @@ An object's memory **can** be sourced from the stack (i.e. `alloca`, `malloca`) 
 - On successful allocation, the memory returned by allocators **MUST** be valid and not be already in use.
   This prevents catastrophic failures like double-free (double-object destructor calls).
 
-**SEE**: GNUC's [`__attribute__((malloc(...)))`](https://gcc.gnu.org/onlinedocs/gcc/Common-Function-Attributes.html) and MSVC's [`__restrict`](https://learn.microsoft.com/en-us/cpp/cpp/restrict?view=msvc-170) return attributes which enables global aliasing optimizations for the compiler's reachability analysis.
+**SEE**: GNUC's [`__attribute__((malloc(...)))`](https://gcc.gnu.org/onlinedocs/gcc/Common-Function-Attributes.html) and MSVC's [`__restrict`](https://learn.microsoft.com/en-us/cpp/cpp/restrict?view=msvc-170) return attributes which enable global aliasing optimizations for the compiler's reachability analysis.
 
 **NOTE**: `malloc(0)` and `realloc(ptr, 0, 0)` are not required to return `nullptr` and is implementation-defined behavior. An implementation **MIGHT** decide to return the same or different non-null (possibly sentinel) memory address for a 0-sized allocation.
 
@@ -140,7 +140,7 @@ int * x = (int*) malloc(4);
 Because `int` is a trivially constructible type (i.e. no special construction semantics) with no invariants, it can be constructed simply by writing to the memory address, and an `int` "object" would implicitly exist at memory address `x`.
 To construct an `int` or trivially constructible object at address `x` You can also use:
 
-- `operator new`
+- `placement new`
 - `memcpy`/`memmove`
 - `memset`/`memset_explicit`
 
@@ -185,7 +185,7 @@ Animal * animal = cat;
 animal->react(); // undefined behavior
 ```
 
-Calling `cat->react()`, correctly calls `Cat::react` via static dispatch. However with dynamic dispatch from its Base class method `Animal::react` via the type-erased call `animal->react()`, this would lead to undefined behavior (a segmentation fault if in debug mode or compiler's reachability analysis doesn't see the `memset`. Otherwise, the compiler **CAN** decide to simply ignore it given it is undefined behavior).
+Calling `cat->react()`, correctly calls `Cat::react` via static dispatch. However with dynamic dispatch from its Base class method `Animal::react` via the type-erased call `animal->react()`, the compiler **CAN** decide to simply elide/ignore it given it is undefined behavior (invocation of a null function pointer), if in debug mode or the compiler's reachability analysis is unable to see the `memset` it could lead to a segmentation fault.
 
 To examine why this happens, let's take a look at implementing implement a virtual class with a custom dynamic dispatch/v-table:
 
@@ -205,7 +205,7 @@ struct Cat{
 
 For virtual dispatch to occur, the function pointer `Animal::react` would need to be called, but in the former example `Animal::react` would have been initialized to `0` by the `memset` call which is undefined behavior when `animal->react()` is invoked.
 
-To fix our previous example, we would need to correctly initialize the implementation-defined virtual function dispatch table via the operator-new call, i.e:
+To fix our previous example, we would need to correctly initialize the implementation-defined virtual function dispatch table via the placement-new call, i.e:
 
 [_Godbolt_](https://godbolt.org/z/z3rds6hPc)
 
@@ -322,6 +322,8 @@ return a->value;
 
 From the generated assembly, the compiler is forced to perform the redundant load from `a_b`, because it _could_ be an alias of `b` because it's origin has been hidden by `std::launder`. Which is just like laundering money, hence, the name `:)`.
 
+**NOTE**: use of `std::launder` here is undefined behavior as no object of type `B` exists nor was constructed at address `a`.
+
 Some languages/dialects have a more aggressive form of this aliasing optimization/rule around mutability and aliasing, i.e. Rust's mutable reference (`& mut`) and [Circle's](https://github.com/seanbaxter/circle) mutable reference which requires only one mutable reference can be binded to an object at once, Which allow for more controversial and aggressive optimizations even across objects of the same type within a scope.
 This is comparable to the non-standard [`restrict`](https://en.cppreference.com/w/c/language/restrict) qualifier (GCC/Clang: `__restrict__`, and MSVC: `__restrict`).
 
@@ -393,7 +395,7 @@ new (&w.cat) Cat{};  // now cat is initialized, we can access it
 react(&w.cat);       // purr...
 ```
 
-As you can see in the example above, we can't simply pretend to use the union's other variant, we need to maintain the object lifecycle, by first deleting `c` (trivial in this case, so no-op), then constructing `cat` using `operator new` (non-trivial) which would solve the UB by initializing the v-table for the `Cat` object.
+As you can see in the example above, we can't simply pretend to use the union's other variant, we need to maintain the object lifecycle, by first deleting `c` (trivial in this case, so no-op), then constructing `cat` using `placement new` (non-trivial) which would solve the UB by initializing the v-table for the `Cat` object.
 
 This is a common footgun for C developers thinking C++ unions function similarly to C's.
 Also, note that if the union contains non-trivial types, the construction, destruction, assignment, and move operations, need to be manually and explicitly implemented.
@@ -475,17 +477,17 @@ This would end up extending our C++ object lifecycle to (from C++ 26):
   allocate placement memory
              ||
              ||
-             ||   ====================================> relocate object
-             ||   ||                                          ||
-             ||   ||                  ==============          ||
-             \/   ||                  ||          ||          ||
-====>  construct object  =====> assign object <=====          ||
-||           ||                       ||                      ||
-||           \/                       ||                      ||
-====== destruct object  <===============                      ||
-             ||                                               ||
-             \/                                               ||
- deallocate placement memory <==================================
+             ||   =============================> relocate object
+             ||   ||                                   ||
+             ||   ||               ============        ||
+             \/   ||               ||        ||        ||
+====>  construct object ===> assign object <===        ||
+||           ||                    ||                  ||
+||           \/                    ||                  ||
+====== destruct object  <============                  ||
+             ||                                        ||
+             \/                                        ||
+ deallocate placement memory <===========================
 ```
 
 - [P2786R0: Trivial relocatability options,
