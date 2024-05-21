@@ -48,7 +48,7 @@ body {
   position: relative;
   color: $text-base-color;
   background-color: $white;
-  font: $normal-weight #{$base-font-size}/#{$base-line-height} $sans-family;
+  font: $normal-weight #{$base-font-size}/#{$base-line-height} $font-family;
   -webkit-text-size-adjust: 100%;
   -webkit-font-smoothing: antialiased;
   -webkit-font-feature-settings: "kern" 1;
