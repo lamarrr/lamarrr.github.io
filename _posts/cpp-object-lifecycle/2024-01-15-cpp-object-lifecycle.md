@@ -420,9 +420,9 @@ Just like `Option<T>`, `Result<T, E>` maintains the lifecycle of the value type 
 
 #### Trivial Relocation
 
-Trivial relocation is an upcoming C++ 26 Feature I'm really excited about that further extends the C++ object lifecycle and gives room for further optimizations.
+Trivial relocation is an upcoming C++ 26 Feature I'm most excited about that further extends the C++ object lifecycle and gives room for further optimizations.
 
-Relocation is a combination of move from source object to uninitialized destination and destruction of the object left in the source (_destructive move<sup>TM</sup>_).
+Relocation is a combination of move from the source object to the uninitialized destination and destruction of the object representation left in the source (_destructive move<sup>TM</sup>_).
 
 i.e:
 
@@ -452,7 +452,7 @@ struct MyStr {
     char* data_ = nullptr;
     size_t size_ = 0;
     MyStr() {}
-    MyStr(char* data, size_t num) : data_{(char*)malloc(num)}, size_{num} {}
+    MyStr(char const* data, size_t num) : data_{(char*)malloc(num)}, size_{num} { memcpy(data_, data, num);  }
     MyStr(MyStr const&) = delete;
     MyStr& operator=(MyStr&&) = delete;
     MyStr& operator=(MyStr const&) = delete;
@@ -471,7 +471,7 @@ For small locally contained objects, non-trivial-relocation may not affect perfo
 
 Also note that if your allocator supports `realloc`, trivial relocations means `grow`'ing your `vector` type's capacity could be collapsed into a zero-cost `realloc` (the Operating System would often just need to extend the allocation's entry if there's enough space within the page) rather than allocating a new separate memory, moving the objects to that memory, destroying the residual objects in the source memory and then free-ing the source memory.
 
-This would end up extending our C++ object lifecycle to (from C++ 26):
+Trivial relocation would extend our C++ object lifecycle model to:
 
 ```txt
   allocate placement memory
