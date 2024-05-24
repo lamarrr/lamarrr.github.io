@@ -1,5 +1,5 @@
 ---
-title: RAII and The C++ Object Lifecycle
+title: The C++ Object Lifecycle
 date: 2024-05-01 12:00:00 +00:00
 modified: 2024-05-01 12:00:00 +00:00
 tags: [c++, RAII, memory]
