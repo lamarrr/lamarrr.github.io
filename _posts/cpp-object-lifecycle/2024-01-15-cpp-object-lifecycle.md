@@ -8,7 +8,7 @@ image: "/cpp-object-lifecycle/omen.jpg"
 image_caption: Omen
 ---
 
-Most Discussions around RAII/C++ Objects don't discuss the implicit contracts required to maintain the object's validity. These contracts are required when implementing your custom container types, working with custom memory allocators, tag discriminated unions (i.e. `Result<T, E>` and `Option<T>`, `std::variant<T...>`), etc.
+Most Discussions around RAII/C++ Objects don't discuss the implicit contracts required to maintain the object's validity. These contracts are required when implementing your custom container types, working with custom memory allocators, tag discriminated unions (i.e. [`Result<T, E>`](https://github.com/lamarrr/ashura/blob/ec183d8cb6109c263e5b6b0f070079bf3db65230/ashura/std/result.h#L29) and [`Option<T>`](https://github.com/lamarrr/ashura/blob/ec183d8cb6109c263e5b6b0f070079bf3db65230/ashura/std/option.h#L25), [`std::variant<T...>`](https://en.cppreference.com/w/cpp/utility/variant)), etc.
 
 These are typically termed as 'unsafe' operations as they do require an understanding of the Object lifetime invariants or lifecycle.
 I would assume some basic familiarity with assembly as it is difficult to make sense of some of the article's experiments without them.
