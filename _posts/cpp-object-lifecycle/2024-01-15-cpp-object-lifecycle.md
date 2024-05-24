@@ -325,7 +325,7 @@ From the generated assembly, the compiler is forced to perform the redundant loa
 **NOTE**: use of `std::launder` here is undefined behavior as no object of type `B` exists nor was constructed at address `a`.
 
 Some languages/dialects have a more aggressive form of this aliasing optimization/rule around mutability and aliasing, i.e. Rust's mutable reference (`& mut`) and [Circle's](https://github.com/seanbaxter/circle) mutable reference which requires only one mutable reference can be binded to an object at once, Which allow for more controversial and aggressive optimizations even across objects of the same type within a scope.
-This is comparable to the non-standard [`restrict`](https://en.cppreference.com/w/c/language/restrict) qualifier (GCC/Clang: `__restrict__`, and MSVC: `__restrict`).
+This is comparable to the non-standard [`restrict`](https://en.cppreference.com/w/c/language/restrict) qualifier (GCC/Clang: [`__restrict__`](https://gcc.gnu.org/onlinedocs/gcc-13.2.0/gcc/Restricted-Pointers.html), and MSVC: [`__restrict`](https://learn.microsoft.com/en-us/cpp/cpp/extension-restrict?view=msvc-170)).
 
 To illustrate:
 
