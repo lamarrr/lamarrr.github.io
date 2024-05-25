@@ -112,7 +112,7 @@ Reading an uninitialized/non-constructed object is Undefined Behavior and catast
 
 Placement-new serves some important purposes:
 
-- initializing virtual function dispatch table for virtual (base and inherited) classes. (`reintepret_cast` + trivial construction i.e. `memset` or `memcpy` is not enough). i.e.
+- initializing virtual function dispatch table for virtual (base and inherited) classes. (trivial construction i.e. `memset` or `memcpy` is not enough)
 - initializing the class/struct, its base classes, and its members
 
 Let's look at these in practice:
