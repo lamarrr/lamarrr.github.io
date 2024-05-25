@@ -1,7 +1,7 @@
 ---
 title: The C++ Object Lifecycle
-date: 2024-05-01 12:00:00 +00:00
-modified: 2024-05-01 12:00:00 +00:00
+date: 2024-05-25 12:00:00 +00:00
+modified: 2024-05-25 12:00:00 +00:00
 tags: [c++, RAII, memory]
 description: An analysis of the C++ Object Lifecycle
 image: "/cpp-object-lifecycle/omen.jpg"
